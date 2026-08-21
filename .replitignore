@@ -1,0 +1,15 @@
+# The format of this file is identical to `.dockerignore`.
+# It keeps personal files, local tooling state, and generated artifacts out of
+# deployed images.
+
+.agents
+.cache
+.local
+.pythonlibs
+.upm
+attached_assets
+coverage
+playwright-report
+test-results
+screenshots
+*.log

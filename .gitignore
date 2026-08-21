@@ -1,0 +1,80 @@
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+
+# Build output and TypeScript state
+dist/
+build/
+out/
+out-tsc/
+.next/
+.vite/
+.turbo/
+*.tsbuildinfo
+
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# Local database data and dumps
+pgdata/
+postgres-data/
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+
+# Logs, coverage, and test output
+*.log
+logs/
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+screenshots/
+
+# Python and one-off local tooling
+.pythonlibs/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Agent, Replit, and local workspace state
+.agents/
+.cache/
+.local/
+.upm/
+
+# Personal uploads and temporary assets
+attached_assets/
+
+# IDE and operating-system files
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.cursor/
+.project
+.classpath
+.c9/
+.settings/
+*.launch
+*.sublime-workspace
+.DS_Store
+Thumbs.db

@@ -1,0 +1,843 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Phase 1 control-plane and gateway contract for Command Post.
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: overview
+    description: Dashboard overview and activity
+  - name: providers
+    description: Provider and model management
+  - name: routing
+    description: Routing policy management
+  - name: usage
+    description: Usage, budgets, and cost accounting
+  - name: jobs
+    description: Asynchronous gateway jobs
+  - name: cache
+    description: Semantic cache health and quality
+  - name: security
+    description: Security event review
+  - name: identity
+    description: Dashboard identity and users
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Current service health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /overview:
+    get:
+      operationId: getOverview
+      tags: [overview]
+      summary: Get the operator overview
+      responses:
+        "200":
+          description: Overview snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Overview"
+  /events:
+    get:
+      operationId: listEvents
+      tags: [overview]
+      summary: List recent operational events
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Recent events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OperationalEvent"
+  /providers:
+    get:
+      operationId: listProviders
+      tags: [providers]
+      summary: List configured providers
+      responses:
+        "200":
+          description: Providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Provider"
+    post:
+      operationId: createProvider
+      tags: [providers]
+      summary: Register a provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderInput"
+      responses:
+        "201":
+          description: Registered provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provider"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /providers/{id}/status:
+    patch:
+      operationId: updateProviderStatus
+      tags: [providers]
+      summary: Enable or disable a provider
+      parameters:
+        - $ref: "#/components/parameters/ProviderId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderStatusInput"
+      responses:
+        "200":
+          description: Updated provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provider"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /models:
+    get:
+      operationId: listModels
+      tags: [providers]
+      summary: List model catalog entries
+      responses:
+        "200":
+          description: Models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Model"
+  /aliases:
+    get:
+      operationId: listAliases
+      tags: [providers]
+      summary: List stable model aliases
+      responses:
+        "200":
+          description: Stable aliases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ModelAlias"
+  /routing/policy:
+    get:
+      operationId: getRoutingPolicy
+      tags: [routing]
+      summary: Get routing policy
+      responses:
+        "200":
+          description: Routing policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoutingPolicy"
+    put:
+      operationId: updateRoutingPolicy
+      tags: [routing]
+      summary: Update routing policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoutingPolicyInput"
+      responses:
+        "200":
+          description: Updated routing policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoutingPolicy"
+  /usage/summary:
+    get:
+      operationId: getUsageSummary
+      tags: [usage]
+      summary: Get usage and budget summary
+      responses:
+        "200":
+          description: Usage summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageSummary"
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List asynchronous jobs
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/JobStatus"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+    post:
+      operationId: submitJob
+      tags: [jobs]
+      summary: Submit an asynchronous gateway job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobInput"
+      responses:
+        "202":
+          description: Job accepted
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /jobs/{id}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get a job and its processing timeline
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /jobs/{id}/cancel:
+    post:
+      operationId: cancelJob
+      tags: [jobs]
+      summary: Request job cancellation
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Updated job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /cache/summary:
+    get:
+      operationId: getCacheSummary
+      tags: [cache]
+      summary: Get semantic cache health and quality
+      responses:
+        "200":
+          description: Cache summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CacheSummary"
+  /security/events:
+    get:
+      operationId: listSecurityEvents
+      tags: [security]
+      summary: List recent security events
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Security events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SecurityEvent"
+  /users:
+    get:
+      operationId: listUsers
+      tags: [identity]
+      summary: List provisioned dashboard users
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DashboardUser"
+  /v1/models:
+    get:
+      operationId: listGatewayModels
+      tags: [providers]
+      summary: List gateway models
+      responses:
+        "200":
+          description: Gateway model catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Model"
+  /v1/messages:
+    post:
+      operationId: submitMessage
+      tags: [jobs]
+      summary: Submit an Anthropic-compatible message job
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "200":
+          description: OpenAI-style server-sent event stream for a streaming request
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "202":
+          description: Message job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /v1/embeddings:
+    post:
+      operationId: submitEmbedding
+      tags: [jobs]
+      summary: Submit a gateway-native embedding job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmbeddingInput"
+      responses:
+        "202":
+          description: Embedding job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+  /v1/batches:
+    post:
+      operationId: submitBatch
+      tags: [jobs]
+      summary: Submit an asynchronous batch job
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchInput"
+      responses:
+        "202":
+          description: Batch job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    ProviderId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    JobId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    HealthStatus:
+      type: object
+      required: [status, service, version, checks]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unavailable]
+        service:
+          type: string
+        version:
+          type: string
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthCheck"
+    HealthCheck:
+      type: object
+      required: [name, status, detail]
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [healthy, degraded, unavailable]
+        detail:
+          type: string
+    Overview:
+      type: object
+      required: [throughput, latency, availability, activeJobs, providers, budgets, recentActivity]
+      properties:
+        throughput:
+          type: number
+        latency:
+          type: number
+        availability:
+          type: number
+        activeJobs:
+          type: integer
+        providers:
+          $ref: "#/components/schemas/OverviewProviders"
+        budgets:
+          $ref: "#/components/schemas/BudgetSummary"
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/OperationalEvent"
+    OverviewProviders:
+      type: object
+      required: [healthy, degraded, disabled, total]
+      properties:
+        healthy:
+          type: integer
+        degraded:
+          type: integer
+        disabled:
+          type: integer
+        total:
+          type: integer
+    BudgetSummary:
+      type: object
+      required: [inputTokens, outputTokens, requests, cost, percentUsed]
+      properties:
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        requests:
+          type: integer
+        cost:
+          type: number
+        percentUsed:
+          type: number
+    OperationalEvent:
+      type: object
+      required: [id, level, title, detail, occurredAt]
+      properties:
+        id:
+          type: string
+        level:
+          type: string
+          enum: [info, warning, error, critical]
+        title:
+          type: string
+        detail:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+    Provider:
+      type: object
+      required: [id, name, kind, status, health, latency, errorRate, models, lastCheckedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [hosted, local]
+        status:
+          type: string
+          enum: [enabled, disabled]
+        health:
+          type: string
+          enum: [healthy, degraded, unavailable]
+        latency:
+          type: number
+        errorRate:
+          type: number
+        models:
+          type: integer
+        lastCheckedAt:
+          type: string
+          format: date-time
+    ProviderInput:
+      type: object
+      required: [name, kind]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum: [hosted, local]
+    ProviderStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [enabled, disabled]
+    Model:
+      type: object
+      required: [id, providerId, provider, name, category, contextWindow, status, pricing]
+      properties:
+        id:
+          type: string
+        providerId:
+          type: string
+        provider:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [fast, general, reasoning, long_context, embedding, code, structured_output, local]
+        contextWindow:
+          type: integer
+        status:
+          type: string
+          enum: [active, canary, disabled]
+        pricing:
+          type: object
+          required: [input, output]
+          properties:
+            input:
+              type: number
+            output:
+              type: number
+    ModelAlias:
+      type: object
+      required: [alias, capability, target, provider, status, resolvedVersion]
+      properties:
+        alias:
+          type: string
+        capability:
+          type: string
+        target:
+          type: string
+        provider:
+          type: string
+        status:
+          type: string
+          enum: [active, canary, paused]
+        resolvedVersion:
+          type: string
+    RoutingPolicy:
+      type: object
+      required: [strategy, maxAttempts, costGuardrail, latencyTargets, updatedAt]
+      properties:
+        strategy:
+          type: string
+          enum: [lowest_predicted_latency]
+        maxAttempts:
+          type: integer
+        costGuardrail:
+          type: number
+        latencyTargets:
+          type: object
+          required: [standard, longContext, structured]
+          properties:
+            standard:
+              type: integer
+            longContext:
+              type: integer
+            structured:
+              type: integer
+        updatedAt:
+          type: string
+          format: date-time
+    RoutingPolicyInput:
+      type: object
+      required: [costGuardrail, standardLatency, longContextLatency, structuredLatency]
+      properties:
+        costGuardrail:
+          type: number
+          minimum: 0
+          maximum: 100
+        standardLatency:
+          type: integer
+          minimum: 1
+        longContextLatency:
+          type: integer
+          minimum: 1
+        structuredLatency:
+          type: integer
+          minimum: 1
+    UsageSummary:
+      type: object
+      required: [period, inputTokens, outputTokens, requests, providerCost, internalCost, cacheHitRate, budgetUsed, dailyLimit]
+      properties:
+        period:
+          type: string
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        requests:
+          type: integer
+        providerCost:
+          type: number
+        internalCost:
+          type: number
+        cacheHitRate:
+          type: number
+        budgetUsed:
+          type: number
+        dailyLimit:
+          type: number
+    Job:
+      type: object
+      required: [id, type, model, status, submittedAt, updatedAt, attempts, timeline]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [message, embedding, batch]
+        model:
+          type: string
+        status:
+          $ref: "#/components/schemas/JobStatus"
+        submittedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        attempts:
+          type: integer
+        requester:
+          type: ["string", "null"]
+        timeline:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimelineEvent"
+        resultSummary:
+          type: ["string", "null"]
+        error:
+          type: ["string", "null"]
+    JobStatus:
+      type: string
+      enum: [queued, dispatching, running, retrying, streaming, succeeded, partially_failed, failed, cancelled, expired]
+    TimelineEvent:
+      type: object
+      required: [label, detail, occurredAt, state]
+      properties:
+        label:
+          type: string
+        detail:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        state:
+          type: string
+          enum: [complete, active, pending, error]
+    JobInput:
+      type: object
+      required: [type, model, prompt]
+      properties:
+        type:
+          type: string
+          enum: [message, embedding, batch]
+        model:
+          type: string
+        prompt:
+          type: string
+          minLength: 1
+        stream:
+          type: boolean
+    MessageInput:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+              content:
+                type: string
+        max_tokens:
+          type: integer
+          minimum: 1
+        stream:
+          type: boolean
+    EmbeddingInput:
+      type: object
+      required: [model, input]
+      properties:
+        model:
+          type: string
+        input:
+          type: array
+          items:
+            type: string
+    BatchInput:
+      type: object
+      required: [model, items]
+      properties:
+        model:
+          type: string
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: "#/components/schemas/MessageInput"
+    CacheSummary:
+      type: object
+      required: [status, hitRate, entries, savedTokens, backend, lastUpdatedAt]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unavailable]
+        hitRate:
+          type: number
+        entries:
+          type: integer
+        savedTokens:
+          type: integer
+        backend:
+          type: string
+        lastUpdatedAt:
+          type: string
+          format: date-time
+    SecurityEvent:
+      type: object
+      required: [id, severity, title, detail, occurredAt, status]
+      properties:
+        id:
+          type: string
+        severity:
+          type: string
+          enum: [info, warning, error, critical]
+        title:
+          type: string
+        detail:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [open, acknowledged, resolved]
+    DashboardUser:
+      type: object
+      required: [id, name, email, role, provider, status, lastSeenAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [owner, application_developer, ml_engineer, platform_engineer]
+        provider:
+          type: string
+        status:
+          type: string
+          enum: [active, invited, suspended]
+        lastSeenAt:
+          type: string
+          format: date-time

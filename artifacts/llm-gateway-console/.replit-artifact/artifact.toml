@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "LLM Gateway Console"
+description = "A production-oriented operator console for a real-time multi-agent LLM gateway. It provides system health, provider and model routing controls, usage and budget visibility, semantic cache metrics, security events, and a focused Phase 1 setup experience for platform and ML engineers."
+version = "1.0.0"
+id = "artifacts/llm-gateway-console"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21354
+
+[services.development]
+run = "pnpm --filter @workspace/llm-gateway-console run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/llm-gateway-console", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/llm-gateway-console/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21354"
+BASE_PATH = "/"
