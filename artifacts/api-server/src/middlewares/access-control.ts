@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
 export type AccessScope = "gateway" | "operator";
@@ -47,6 +47,53 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+// ---------------------------------------------------------------------------
+// Session cookie helpers
+// ---------------------------------------------------------------------------
+
+export const SESSION_COOKIE_NAME = "cp_session";
+export const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+
+type SessionPayload = { scope: AccessScope; iat: number };
+
+function getSessionSecret(): string | null {
+  return getConfiguredKey("SESSION_SECRET");
+}
+
+/** Signs a session payload and returns a cookie value, or null when SESSION_SECRET is absent. */
+export function signSession(scope: AccessScope): string | null {
+  const secret = getSessionSecret();
+  if (!secret) return null;
+  const payload = Buffer.from(JSON.stringify({ scope, iat: Date.now() } satisfies SessionPayload)).toString("base64url");
+  const sig = createHmac("sha256", secret).update(payload).digest("base64url");
+  return `v1.${payload}.${sig}`;
+}
+
+/** Verifies a session cookie value and returns the principal, or null on failure. */
+export function verifySession(cookie: string): AccessPrincipal | null {
+  const secret = getSessionSecret();
+  if (!secret) return null;
+  const parts = cookie.split(".");
+  if (parts.length !== 3 || parts[0] !== "v1") return null;
+  const [, payload, sig] = parts;
+  const expectedSig = createHmac("sha256", secret).update(payload).digest("base64url");
+  const expectedBuf = Buffer.from(expectedSig);
+  const actualBuf = Buffer.from(sig);
+  if (expectedBuf.length !== actualBuf.length || !timingSafeEqual(expectedBuf, actualBuf)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString()) as SessionPayload;
+    if (Date.now() - parsed.iat > SESSION_TTL_MS) return null;
+    if (parsed.scope !== "operator" && parsed.scope !== "gateway") return null;
+    return { id: `session:${parsed.scope}`, scope: parsed.scope };
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Response helpers
+// ---------------------------------------------------------------------------
+
 function denyUnconfigured(res: Response): void {
   res.status(503).json({
     error: "API access is not configured. Set Command Post access keys before enabling non-health routes.",
@@ -67,26 +114,37 @@ function authorize(requiredScope: AccessScope) {
       return;
     }
 
+    // --- Bearer token (programmatic / gateway clients) ---
     const token = bearerToken(req);
-    if (!token) {
+    if (token) {
+      if (operatorKey && matchesSecret(token, operatorKey)) {
+        req.commandPostPrincipal = { id: "operator:default", scope: "operator" };
+        next();
+        return;
+      }
+      if (requiredScope === "gateway" && gatewayKey && matchesSecret(token, gatewayKey)) {
+        req.commandPostPrincipal = { id: "gateway:default", scope: "gateway" };
+        next();
+        return;
+      }
       denyUnauthorized(res);
       return;
     }
 
-    if (operatorKey && matchesSecret(token, operatorKey)) {
-      req.commandPostPrincipal = { id: "operator:default", scope: "operator" };
-      next();
-      return;
-    }
-
-    if (
-      requiredScope === "gateway" &&
-      gatewayKey &&
-      matchesSecret(token, gatewayKey)
-    ) {
-      req.commandPostPrincipal = { id: "gateway:default", scope: "gateway" };
-      next();
-      return;
+    // --- Signed session cookie (browser / console) ---
+    const cookieValue: string | undefined = (req as Request & { cookies?: Record<string, string> }).cookies?.[SESSION_COOKIE_NAME];
+    if (cookieValue) {
+      const principal = verifySession(cookieValue);
+      if (principal) {
+        const scopeOk = requiredScope === "gateway"
+          ? true
+          : principal.scope === "operator";
+        if (scopeOk) {
+          req.commandPostPrincipal = principal;
+          next();
+          return;
+        }
+      }
     }
 
     denyUnauthorized(res);
