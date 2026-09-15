@@ -2,9 +2,9 @@
 
 Command Post is a multi-provider LLM gateway and operator console for teams that need one place to manage model access, routing policy, asynchronous jobs, usage visibility, and operational events.
 
-The project exposes a single gateway surface for hosted and local models, with a web console for platform and ML engineers. The initial deployment focus is OpenAI, Anthropic, Google Gemini, and remotely hosted Ollama.
+The project exposes a single gateway surface for hosted and local models, with a web console for platform and ML engineers. The initial deployment focus is OpenAI, Anthropic, Google Gemini, and Ollama reached through a separately provisioned remote worker endpoint.
 
-> **Project status:** Phase 1 / initial release. The control-plane experience and provider adapters are implemented; production routing state, cache infrastructure, identity enforcement, and cloud-hosted local-model operations are documented as follow-on work.
+> **Project status:** Phase 1 / initial release. The control-plane experience, browser login, hosted-provider adapters, and validated remote Ollama routing are implemented. Redis-backed routing state, semantic caching, and GPU hosting remain outside this repository.
 
 ## Why Command Post
 
@@ -24,7 +24,7 @@ Express gateway API (/api)
               ├── OpenAI
               ├── Anthropic
               ├── Google Gemini
-              └── Ollama (remote endpoint)
+              └── Ollama (validated remote worker endpoint)
 ```
 
 The API uses asynchronous jobs for non-streaming work (`202` plus polling) and server-sent events for streaming messages. Job outcomes are persisted even when a streaming client disconnects.
@@ -59,7 +59,7 @@ scripts/                  Workspace utility and post-merge scripts
 - Node.js 24+
 - pnpm 10+
 - PostgreSQL 16+ for local development
-- At least one provider credential, or a reachable Ollama endpoint
+- At least one provider credential, or a reachable Ollama worker endpoint
 
 ## Local setup
 
@@ -100,25 +100,31 @@ In Replit, use the managed workflows instead of starting a root-level developmen
 | `OPENAI_API_KEY` | Optional | Enables OpenAI requests |
 | `ANTHROPIC_API_KEY` | Optional | Enables Anthropic requests |
 | `GOOGLE_GEMINI_API_KEY` | Optional | Enables Google Gemini requests |
-| `COMMAND_POST_OPERATOR_API_KEY` | Yes for control-plane access | Bearer key for operator console and routing controls |
+| `COMMAND_POST_OPERATOR_API_KEY` | Yes for browser login | Operator key validated by `/api/auth/login` |
 | `COMMAND_POST_GATEWAY_API_KEY` | Yes for gateway access | Bearer key for application gateway requests |
+| `SESSION_SECRET` | Yes for browser login | High-entropy secret used to sign the operator's HttpOnly session cookie |
 | `GATEWAY_REQUESTS_PER_MINUTE` | Optional | Per-principal gateway request ceiling; defaults to `60` |
 | `GATEWAY_REQUESTS_PER_DAY` | Optional | Per-principal daily gateway request budget; defaults to `1000` |
-| `OLLAMA_BASE_URL` | Optional | Public base URL for a remote Ollama server |
+| `OLLAMA_BASE_URL` | Optional | Base URL for the validated remote Ollama worker endpoint |
+| `CF_ACCESS_CLIENT_ID` | Optional | Cloudflare Access service-token client ID forwarded to the Ollama worker |
+| `CF_ACCESS_CLIENT_SECRET` | Optional | Cloudflare Access service-token secret forwarded to the Ollama worker |
 
 Store credentials in Replit Secrets or your deployment platform's secret manager. Never commit `.env` files, API keys, private certificates, or database dumps.
 
-For a remote Ollama deployment, `OLLAMA_BASE_URL` must be reachable from the API service. `localhost` refers to the Replit environment, not your laptop or external GPU host.
+For a remote Ollama deployment, `OLLAMA_BASE_URL` must be reachable from the API service. `localhost` refers to the Replit environment, not your laptop or external GPU host. The remote worker must expose Ollama-compatible `/api/tags` and OpenAI-compatible `/v1` endpoints. Command Post probes `/api/tags` through the public health check and routes model requests through `/v1`.
+
+When the worker is protected by Cloudflare Access, set both `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`. Command Post forwards the service-token headers server-side; these values are never sent to the browser.
 
 ### API access control
 
-Only `/api/healthz` is public. All other API routes fail closed until access keys are configured:
+The health check and browser login endpoints are public. All other API routes fail closed until access keys are configured:
 
-- Control-plane routes (`/api/overview`, providers, routing, usage, and security events) require `Authorization: Bearer <COMMAND_POST_OPERATOR_API_KEY>`.
+- The browser console posts the operator key to `/api/auth/login`. On success, the API issues a signed, eight-hour HttpOnly session cookie. The key is not stored in browser storage or exposed in the generated client.
+- Control-plane routes (`/api/overview`, providers, routing, usage, and security events) accept the operator session cookie or `Authorization: Bearer <COMMAND_POST_OPERATOR_API_KEY>`.
 - Gateway routes (`/api/jobs` and `/api/v1/*`) accept either the operator key or `COMMAND_POST_GATEWAY_API_KEY`.
 - Gateway requests are limited per authenticated principal before dispatch, and gateway principals can only read or cancel their own jobs.
 
-The console uses same-origin API requests, so permissive cross-origin access is intentionally not enabled. Put an authenticated session or trusted reverse proxy in front of the browser console before exposing it to operators.
+The console uses same-origin API requests, so permissive cross-origin access is intentionally not enabled. Configure both `COMMAND_POST_OPERATOR_API_KEY` and `SESSION_SECRET` before opening the dashboard.
 
 ## Common commands
 
@@ -152,14 +158,14 @@ pnpm --filter @workspace/llm-gateway-console run typecheck
 ## Current limitations
 
 - Redis-backed routing state and semantic-cache infrastructure are not provisioned.
-- OAuth, SAML, and API authorization enforcement are deferred.
+- OAuth and SAML are not implemented; the browser console uses the built-in operator-key login and signed session cookie.
 - Hosted-provider credentials must have valid provider billing and quota.
-- Ollama must run on a network-reachable machine; Command Post does not host GPU inference in Replit.
+- Ollama GPU hosting remains external; Command Post does not host GPU inference in Replit. The API requires a network-reachable, Ollama-compatible worker endpoint.
 - Dynamic cost/latency routing and automatic multi-provider failover require additional production infrastructure and validation.
 
-## GitHub release checklist
+## Release checklist
 
-Before the first push:
+Before a release push:
 
 ```bash
 pnpm run typecheck

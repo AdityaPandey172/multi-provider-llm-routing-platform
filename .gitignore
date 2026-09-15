@@ -69,6 +69,8 @@ attached_assets/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+.expo
+.expo-shared
 .cursor/
 .project
 .classpath
@@ -78,3 +80,12 @@ attached_assets/
 *.sublime-workspace
 .DS_Store
 Thumbs.db
+
+# Additional local tooling and system state
+.sass-cache
+/connect.lock
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings

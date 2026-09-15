@@ -8,8 +8,14 @@ import type { ChatMessage, ChatResult, ProviderAdapter } from "./types.js";
 export function createOpenAICompatAdapter(opts: {
   apiKey: string;
   baseURL?: string;
+  /** Extra HTTP headers forwarded on every request (e.g. Cloudflare Access credentials). */
+  defaultHeaders?: Record<string, string>;
 }): ProviderAdapter {
-  const client = new OpenAI({ apiKey: opts.apiKey, baseURL: opts.baseURL });
+  const client = new OpenAI({
+    apiKey: opts.apiKey,
+    baseURL: opts.baseURL,
+    defaultHeaders: opts.defaultHeaders,
+  });
 
   return {
     async chat(messages: ChatMessage[], model: string): Promise<ChatResult> {

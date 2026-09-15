@@ -26,6 +26,6 @@ packages = ["freetype", "gumbo", "harfbuzz", "jbig2dec", "libjpeg_turbo", "mupdf
 [userenv]
 
 [userenv.shared]
-OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+OLLAMA_BASE_URL = "https://ollama-secure-gate-v2.adi-pan1797.workers.dev/"
 VLLM_BASE_URL = "http://127.0.0"
 TGI_BASE_URL = "http://127.0.0"

@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { createOpenAICompatAdapter } from "./openai-compat.js";
 import { createAnthropicAdapter } from "./anthropic.js";
 import { createGeminiAdapter } from "./gemini.js";
+import { cfAccessHeaders } from "../cf-access.js";
 import type { ProviderAdapter } from "./types.js";
 
 /**
@@ -20,6 +21,10 @@ const API_MODEL_MAP: Record<string, string> = {
   "claude-haiku": "claude-haiku-4-5",
   "gemini-2-5-flash": "gemini-2.5-flash",
   "gemini-2-5-pro": "gemini-2.5-pro",
+  // Ollama models — names must match exactly what Ollama reports in /api/tags
+  "deepseek-r1": "deepseek-r1:1.5b",
+  "llama3-2": "llama3.2:latest",
+  // Legacy entries kept for backward compatibility
   "nomic-embed-text": "nomic-embed-text",
   "llama-3-1-local": "llama3.1",
 };
@@ -77,8 +82,13 @@ function buildAdapter(providerId: string): ProviderAdapter | null {
       return createGeminiAdapter({ apiKey: key });
     }
     case "ollama": {
-      const base = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
-      return createOpenAICompatAdapter({ apiKey: "ollama", baseURL: `${base}/v1` });
+      const base = (process.env.OLLAMA_BASE_URL ?? "http://localhost:11434").replace(/\/+$/, "");
+      const defaultHeaders = cfAccessHeaders();
+      return createOpenAICompatAdapter({
+        apiKey: "ollama",
+        baseURL: `${base}/v1`,
+        defaultHeaders: Object.keys(defaultHeaders).length ? defaultHeaders : undefined,
+      });
     }
     case "vllm": {
       const base = process.env.VLLM_BASE_URL ?? "http://localhost:8000";
