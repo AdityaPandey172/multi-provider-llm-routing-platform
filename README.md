@@ -4,8 +4,6 @@ Command Post is a multi-provider LLM gateway and operator console for teams that
 
 The project exposes a single gateway surface for hosted and local models, with a web console for platform and ML engineers. The initial deployment focus is OpenAI, Anthropic, Google Gemini, and Ollama reached through a separately provisioned remote worker endpoint.
 
-> **Project status:** Phase 1 / initial release. The control-plane experience, browser login, hosted-provider adapters, and validated remote Ollama routing are implemented. Redis-backed routing state, semantic caching, and GPU hosting remain outside this repository.
-
 ## Why Command Post
 
 Direct provider integrations spread credentials, model-specific behavior, streaming logic, and failure handling across application services. Command Post centralizes that operational layer so clients use one contract while platform teams manage provider posture and gateway behavior in one console.
